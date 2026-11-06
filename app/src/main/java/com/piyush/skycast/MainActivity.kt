@@ -1,15 +1,21 @@
 package com.piyush.skycast
 
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.android.gms.location.LocationServices
 import com.piyush.skycast.ui.theme.SkyCastTheme
 import com.piyush.skycast.viewmodel.WeatherUiState
 import com.piyush.skycast.viewmodel.WeatherViewModel
@@ -32,24 +38,73 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun WeatherScreen(viewModel: WeatherViewModel = viewModel()) {
-    // This tracks the text typed in the search bar
-    var searchQuery by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    // 1. Initialize the FusedLocationProviderClient
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
-    // This observes the UI state from the ViewModel
+    var searchQuery by remember { mutableStateOf("") }
     val weatherState by viewModel.weatherState.collectAsState()
 
-    // Fetches default weather (Bengaluru) when the app first opens
+    // 2. Create the Permission Launcher
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+        onResult = { permissions ->
+            val isGranted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                    permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            if (isGranted) {
+                // Fetch exact location if granted
+                try {
+                    fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                        if (location != null) {
+                            viewModel.fetchWeather(location.latitude, location.longitude)
+                        } else {
+                            viewModel.fetchWeather() // Fallback to default if GPS is off
+                        }
+                    }
+                } catch (e: SecurityException) {
+                    viewModel.fetchWeather()
+                }
+            } else {
+                // Fallback to default if permission denied
+                viewModel.fetchWeather()
+            }
+        }
+    )
+
+    // 3. Request Permission when the app opens
     LaunchedEffect(Unit) {
-        viewModel.fetchWeather()
+        val hasFine = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+        if (hasFine || hasCoarse) {
+            // Already have permission, get location directly
+            try {
+                fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                    if (location != null) {
+                        viewModel.fetchWeather(location.latitude, location.longitude)
+                    } else {
+                        viewModel.fetchWeather()
+                    }
+                }
+            } catch (e: SecurityException) {
+                viewModel.fetchWeather()
+            }
+        } else {
+            // Ask for permission! This triggers the popup.
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
     }
 
+    // --- UI REMAINS THE SAME ---
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxSize().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // The Search Bar
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
@@ -62,46 +117,27 @@ fun WeatherScreen(viewModel: WeatherViewModel = viewModel()) {
                         viewModel.searchCityWeather(searchQuery.trim())
                     }
                 }) {
-                    Text("🔍") // Using an emoji for a quick icon, no extra imports needed!
+                    Text("🔍")
                 }
             }
         )
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // The Weather Data Display
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.TopCenter
-        ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             when (val state = weatherState) {
-                is WeatherUiState.Loading -> {
-                    CircularProgressIndicator(modifier = Modifier.padding(top = 50.dp))
-                }
+                is WeatherUiState.Loading -> CircularProgressIndicator(modifier = Modifier.padding(top = 50.dp))
                 is WeatherUiState.Success -> {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Current Weather",
-                            style = MaterialTheme.typography.headlineSmall
-                        )
+                        Text(text = "Current Weather", style = MaterialTheme.typography.headlineSmall)
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "${state.weather.currentWeather.temperature}°C",
-                            style = MaterialTheme.typography.displayLarge
-                        )
+                        Text(text = "${state.weather.currentWeather.temperature}°C", style = MaterialTheme.typography.displayLarge)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Wind Speed: ${state.weather.currentWeather.windSpeed} km/h",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        Text(text = "Wind Speed: ${state.weather.currentWeather.windSpeed} km/h", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
                 is WeatherUiState.Error -> {
-                    Text(
-                        text = state.message,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                    Text(text = state.message, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
                 }
             }
         }

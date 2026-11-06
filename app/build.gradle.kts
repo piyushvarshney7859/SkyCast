@@ -61,4 +61,7 @@ dependencies {
 
     // ViewModel for Jetpack Compose
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
+
+    // location service
+    implementation("com.google.android.gms:play-services-location:21.0.1")
 }
