@@ -129,11 +129,28 @@ fun WeatherScreen(viewModel: WeatherViewModel = viewModel()) {
                 is WeatherUiState.Loading -> CircularProgressIndicator(modifier = Modifier.padding(top = 50.dp))
                 is WeatherUiState.Success -> {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = "Current Weather", style = MaterialTheme.typography.headlineSmall)
+                        Text(
+                            text = "Current Weather",
+                            style = MaterialTheme.typography.headlineSmall
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text(text = "${state.weather.currentWeather.temperature}°C", style = MaterialTheme.typography.displayLarge)
+
+                        // This is the new dynamic icon!
+                        Text(
+                            text = getWeatherIcon(state.weather.currentWeather.weatherCode),
+                            style = MaterialTheme.typography.displayLarge,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        Text(
+                            text = "${state.weather.currentWeather.temperature}°C",
+                            style = MaterialTheme.typography.displayLarge
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = "Wind Speed: ${state.weather.currentWeather.windSpeed} km/h", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = "Wind Speed: ${state.weather.currentWeather.windSpeed} km/h",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
                     }
                 }
                 is WeatherUiState.Error -> {
@@ -141,5 +158,18 @@ fun WeatherScreen(viewModel: WeatherViewModel = viewModel()) {
                 }
             }
         }
+    }
+}
+
+fun getWeatherIcon(code: Int): String {
+    return when (code) {
+        0 -> "☀️" // Clear sky
+        1, 2, 3 -> "⛅" // Partly cloudy or overcast
+        45, 48 -> "🌫️" // Fog
+        51, 53, 55, 56, 57, 61, 63, 65, 66, 67 -> "🌧️" // Drizzle and Rain
+        71, 73, 75, 77, 85, 86 -> "❄️" // Snow
+        80, 81, 82 -> "🌦️" // Rain showers
+        95, 96, 99 -> "⛈️" // Thunderstorm
+        else -> "🌡️" // Default
     }
 }
