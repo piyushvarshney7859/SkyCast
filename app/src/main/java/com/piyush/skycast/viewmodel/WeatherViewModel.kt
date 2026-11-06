@@ -31,4 +31,25 @@ class WeatherViewModel : ViewModel() {
             }
         }
     }
+    fun searchCityWeather(cityName: String) {
+        viewModelScope.launch {
+            _weatherState.value = WeatherUiState.Loading
+            try {
+                // Step 1: Get coordinates for the city
+                val geoResponse = repository.searchCity(cityName)
+                val location = geoResponse.results?.firstOrNull()
+
+                if (location != null) {
+                    // Step 2: Fetch weather using those exact coordinates
+                    val weatherResponse = repository.getWeatherData(location.latitude, location.longitude)
+                    _weatherState.value = WeatherUiState.Success(weatherResponse)
+                } else {
+                    // Handled gracefully! No city found.
+                    _weatherState.value = WeatherUiState.Error("City not found. Please try another name! 🏙️")
+                }
+            } catch (e: Exception) {
+                _weatherState.value = WeatherUiState.Error("Network error: ${e.message}")
+            }
+        }
+    }
 }
