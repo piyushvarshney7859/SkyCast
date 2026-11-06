@@ -3,27 +3,27 @@ package com.piyush.skycast
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.piyush.skycast.ui.theme.SkyCastTheme
+import com.piyush.skycast.viewmodel.WeatherUiState
+import com.piyush.skycast.viewmodel.WeatherViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
             SkyCastTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    WeatherScreen()
                 }
             }
         }
@@ -31,17 +31,49 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
+fun WeatherScreen(viewModel: WeatherViewModel = viewModel()) {
+    // This observes the StateFlow from our ViewModel
+    val weatherState by viewModel.weatherState.collectAsState()
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    SkyCastTheme {
-        Greeting("Android")
+    // LaunchedEffect runs once when the screen opens to fetch the data
+    LaunchedEffect(Unit) {
+        viewModel.fetchWeather()
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        // The UI automatically updates based on this state
+        when (val state = weatherState) {
+            is WeatherUiState.Loading -> {
+                CircularProgressIndicator()
+            }
+            is WeatherUiState.Success -> {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Current Weather",
+                        style = MaterialTheme.typography.headlineSmall
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "${state.weather.currentWeather.temperature}°C",
+                        style = MaterialTheme.typography.displayLarge
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Wind Speed: ${state.weather.currentWeather.windSpeed} km/h",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            }
+            is WeatherUiState.Error -> {
+                Text(
+                    text = state.message,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+        }
     }
 }
